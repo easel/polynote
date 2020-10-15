@@ -41,7 +41,6 @@ class ScalaCompiler private (
       global.ask(runnable.run)
       true
     }
-    def here: Boolean = false
   }
 
   private def formatTypeInternal(typ: Type): String = typ match {

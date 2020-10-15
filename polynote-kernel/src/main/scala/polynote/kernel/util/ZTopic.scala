@@ -3,7 +3,7 @@ package polynote.kernel.util
 import java.util.concurrent.atomic.AtomicLong
 
 import zio.stream.{Take, ZStream}
-import zio.{Cause, IO, Managed, Promise, Queue, Ref, Semaphore, UIO, UManaged, ZIO, ZQueue}
+import zio.{Cause, IO, Managed, Promise, Queue, Ref, Schedule, Semaphore, UIO, UManaged, ZIO, ZQueue}
 
 sealed trait ZTopic[-RA, +EA, -RB, +EB, -A, +B] {
   /**
@@ -176,11 +176,9 @@ object ZTopic {
       queue: ZQueue[Any, Nothing, R, E, Take[Nothing, In], Take[Nothing, Out]]
     ) extends ZTopic.Subscriber[R, E, Out] with ZTopic.SubscriberWrite[R, E, In] {
       override def offer(value: Take[Nothing, In]): UIO[Unit] = {
-        val send = queue.offer(value).doUntil(identity).unit
-        value match {
-          case Take.End => removeSubscriber(id) *> send
-          case _ => send
-        }
+        val send = queue.offer(value).repeat(Schedule.doUntil(f)).unit
+        if(value.isDone) removeSubscriber(id) *> send
+        else send
       }
 
       override def take(): ZIO[R, E, Take[Nothing, Out]] = queue.isShutdown.flatMap {
